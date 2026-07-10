@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
     cors_origins: list[str] = ["*"]
+    database_url: str
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
