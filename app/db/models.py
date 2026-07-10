@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, CheckConstraint, JSON
+from sqlalchemy import Column, CheckConstraint, ForeignKey, Integer, JSON
 from sqlmodel import Field, SQLModel
 
 
@@ -38,6 +38,14 @@ class Collection(SQLModel, table=True):
 
 
 class CollectionCard(SQLModel, table=True):
-    collection_id: int = Field(foreign_key="collection.id", primary_key=True)
-    card_id: int = Field(foreign_key="card.id", primary_key=True)
+    collection_id: int = Field(
+        sa_column=Column(
+            Integer, ForeignKey("collection.id", ondelete="CASCADE"), primary_key=True
+        )
+    )
+    card_id: int = Field(
+        sa_column=Column(
+            Integer, ForeignKey("card.id", ondelete="CASCADE"), primary_key=True, index=True
+        )
+    )
     added_at: datetime = Field(default_factory=datetime.utcnow)
