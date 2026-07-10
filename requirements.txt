@@ -4,3 +4,6 @@ pydantic-settings
 sqlmodel
 psycopg2-binary
 alembic
+httpx
+pytest
+pytest-cov
