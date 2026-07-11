@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import httpx
 import pytest
 
-from app.services.scryfall_client import ScryfallError, search_by_name
+from app.services.scryfall_client import ScryfallError, search_by_name, search_by_name_and_number
 
 _SAMPLE_CARD = {
     "id": "abc-123",
@@ -95,3 +95,43 @@ class TestSearchByName:
 
         assert card is not None
         assert card.prices == {}
+
+
+class TestSearchByNameAndNumber:
+    def test_returns_the_first_matching_printing(self):
+        with patch(
+            "app.services.scryfall_client.httpx.get",
+            return_value=_mock_response(200, {"data": [_SAMPLE_CARD]}),
+        ):
+            card = search_by_name_and_number("Lightning Bolt", "133")
+
+        assert card is not None
+        assert card.set_code == "a25"
+        assert card.collector_number == "133"
+
+    def test_returns_none_on_a_404_no_match(self):
+        with patch("app.services.scryfall_client.httpx.get", return_value=_mock_response(404)):
+            assert search_by_name_and_number("Lightning Bolt", "999") is None
+
+    def test_returns_none_when_the_data_array_is_empty(self):
+        with patch(
+            "app.services.scryfall_client.httpx.get",
+            return_value=_mock_response(200, {"data": []}),
+        ):
+            assert search_by_name_and_number("Lightning Bolt", "999") is None
+
+    def test_raises_on_an_unexpected_status_code(self):
+        with patch(
+            "app.services.scryfall_client.httpx.get",
+            return_value=_mock_response(500, text="internal error"),
+        ):
+            with pytest.raises(ScryfallError, match="status 500"):
+                search_by_name_and_number("Lightning Bolt", "133")
+
+    def test_wraps_a_network_failure(self):
+        with patch(
+            "app.services.scryfall_client.httpx.get",
+            side_effect=httpx.ConnectTimeout("timed out"),
+        ):
+            with pytest.raises(ScryfallError, match="request failed"):
+                search_by_name_and_number("Lightning Bolt", "133")

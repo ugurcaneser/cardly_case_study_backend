@@ -6,7 +6,12 @@ from typing import Literal
 from app.core.config import settings
 from app.services.ocr_space_client import OcrSpaceError, detect_text
 from app.services.ocr_text_parser import parse_ocr_text
-from app.services.scryfall_client import ScryfallError, search_by_name
+from app.services.scryfall_client import (
+    ScryfallCard,
+    ScryfallError,
+    search_by_name,
+    search_by_name_and_number,
+)
 
 logger = logging.getLogger("cardly.enrichment")
 
@@ -99,11 +104,9 @@ def _run_pipeline(image_bytes: bytes, start: float) -> EnrichmentResult:
     ocr_ms = _elapsed_ms(ocr_start)
 
     parsed = parse_ocr_text(raw_text)
-    ocr_result = OcrResult(
-        raw_text=raw_text, parsed_name=parsed.parsed_name, parsed_number=parsed.parsed_number
-    )
 
-    if not parsed.parsed_name:
+    if not parsed.name_candidates:
+        ocr_result = OcrResult(raw_text=raw_text, parsed_name=None, parsed_number=parsed.parsed_number)
         return UnrecognizedEnrichment(
             ocr=ocr_result,
             reason="no_ocr_text",
@@ -112,15 +115,35 @@ def _run_pipeline(image_bytes: bytes, start: float) -> EnrichmentResult:
 
     match_start = time.perf_counter()
     try:
-        card = search_by_name(parsed.parsed_name)
+        matched_name, card = _find_first_match(parsed.name_candidates)
+        if card is not None and _collector_numbers_conflict(parsed.parsed_number, card.collector_number):
+            # The name matched, but this is Scryfall's default (usually
+            # most-recent) printing for that name, not necessarily the one
+            # photographed — cards are routinely reprinted under the same
+            # name with a different collector number. Try the specific
+            # printing the OCR'd number points at before giving up on an
+            # otherwise-confident name match.
+            reprint = search_by_name_and_number(matched_name, parsed.parsed_number.split("/")[0])
+            if reprint is not None:
+                card = reprint
     except ScryfallError as exc:
         logger.warning("Scryfall lookup failed: %s", exc)
+        ocr_result = OcrResult(
+            raw_text=raw_text, parsed_name=parsed.parsed_name, parsed_number=parsed.parsed_number
+        )
         return UnrecognizedEnrichment(
             ocr=ocr_result,
             reason="scryfall_unavailable",
             timing=Timing(ocr_ms=ocr_ms, match_ms=_elapsed_ms(match_start), total_ms=_elapsed_ms(start)),
         )
     match_ms = _elapsed_ms(match_start)
+
+    # Report whichever candidate actually matched, not just the topmost OCR guess.
+    ocr_result = OcrResult(
+        raw_text=raw_text,
+        parsed_name=matched_name or parsed.parsed_name,
+        parsed_number=parsed.parsed_number,
+    )
 
     if card is None:
         return UnrecognizedEnrichment(
@@ -153,6 +176,20 @@ def _run_pipeline(image_bytes: bytes, start: float) -> EnrichmentResult:
         ),
         timing=Timing(ocr_ms=ocr_ms, match_ms=match_ms, total_ms=_elapsed_ms(start)),
     )
+
+
+def _find_first_match(name_candidates: tuple[str, ...]) -> tuple[str | None, ScryfallCard | None]:
+    """Tries each ranked name candidate against Scryfall, stopping at the first hit.
+
+    A ScryfallError (network/service failure) propagates immediately rather
+    than being swallowed per-candidate — if Scryfall itself is down, trying
+    the rest of the candidates can't succeed and only adds latency.
+    """
+    for candidate in name_candidates:
+        card = search_by_name(candidate)
+        if card is not None:
+            return candidate, card
+    return None, None
 
 
 def _elapsed_ms(start: float) -> float:
