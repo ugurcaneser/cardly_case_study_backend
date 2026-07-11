@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_origins: list[str] = ["*"]
     database_url: str
+    google_vision_api_key: str | None = None
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
