@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes.cards import router as cards_router
 from app.api.routes.collections import router as collections_router
+from app.api.routes.enrich import router as enrich_router
 from app.api.routes.health import router as health_router
 from app.core.config import settings
 from app.core.logging import configure_logging
@@ -24,3 +25,4 @@ app.add_middleware(
 app.include_router(health_router)
 app.include_router(cards_router)
 app.include_router(collections_router)
+app.include_router(enrich_router)
