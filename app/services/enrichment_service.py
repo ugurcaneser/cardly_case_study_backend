@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from app.core.config import settings
-from app.services.google_vision_client import GoogleVisionError, detect_text
+from app.services.ocr_space_client import OcrSpaceError, detect_text
 from app.services.ocr_text_parser import parse_ocr_text
 from app.services.scryfall_client import ScryfallError, search_by_name
 
@@ -92,9 +92,9 @@ def _run_pipeline(image_bytes: bytes, start: float) -> EnrichmentResult:
     ocr_start = time.perf_counter()
     try:
         raw_text = detect_text(image_bytes)
-    except GoogleVisionError as exc:
-        logger.warning("Google Vision call failed: %s", exc)
-        code: ErrorCode = "CONFIG_MISSING" if not settings.google_vision_api_key else "OCR_PROVIDER_ERROR"
+    except OcrSpaceError as exc:
+        logger.warning("OCR.space call failed: %s", exc)
+        code: ErrorCode = "CONFIG_MISSING" if not settings.ocr_space_api_key else "OCR_PROVIDER_ERROR"
         return ErrorEnrichment(code=code, message=str(exc))
     ocr_ms = _elapsed_ms(ocr_start)
 

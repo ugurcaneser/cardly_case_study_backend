@@ -8,7 +8,7 @@ from app.services.enrichment_service import (
     UnrecognizedEnrichment,
     enrich_image,
 )
-from app.services.google_vision_client import GoogleVisionError
+from app.services.ocr_space_client import OcrSpaceError
 from app.services.scryfall_client import ScryfallCard, ScryfallError
 
 _SAMPLE_CARD = ScryfallCard(
@@ -56,16 +56,16 @@ class TestEnrichImage:
         assert result.reason == "no_ocr_text"
 
     def test_vision_config_missing_maps_to_config_missing_error(self, monkeypatch):
-        monkeypatch.setattr("app.services.enrichment_service.settings.google_vision_api_key", None)
-        with _patch_vision(error=GoogleVisionError("GOOGLE_VISION_API_KEY is not configured")):
+        monkeypatch.setattr("app.services.enrichment_service.settings.ocr_space_api_key", None)
+        with _patch_vision(error=OcrSpaceError("OCR_SPACE_API_KEY is not configured")):
             result = enrich_image(b"fake-image")
 
         assert isinstance(result, ErrorEnrichment)
         assert result.code == "CONFIG_MISSING"
 
     def test_vision_provider_failure_maps_to_ocr_provider_error(self, monkeypatch):
-        monkeypatch.setattr("app.services.enrichment_service.settings.google_vision_api_key", "key")
-        with _patch_vision(error=GoogleVisionError("Vision API returned status 403")):
+        monkeypatch.setattr("app.services.enrichment_service.settings.ocr_space_api_key", "key")
+        with _patch_vision(error=OcrSpaceError("OCR.space returned status 403")):
             result = enrich_image(b"fake-image")
 
         assert isinstance(result, ErrorEnrichment)
