@@ -35,6 +35,6 @@ def client_fixture(session: Session):
         return session
 
     app.dependency_overrides[get_session] = get_session_override
-    with TestClient(app) as client:
+    with TestClient(app, headers={"X-Device-Id": "test-device"}) as client:
         yield client
     app.dependency_overrides.clear()

@@ -44,3 +44,35 @@ def test_full_card_lifecycle(client):
 def test_delete_missing_card_returns_404(client):
     response = client.delete("/cards/999")
     assert response.status_code == 404
+
+
+def test_missing_device_id_header_rejected(client):
+    response = client.get("/cards", headers={"X-Device-Id": ""})
+    assert response.status_code == 400
+
+
+def test_cards_are_scoped_per_device(client):
+    client.post("/cards", json={"status": "pending", "matched_name": "Own Card"})
+
+    other_device_resp = client.get("/cards", headers={"X-Device-Id": "other-device"})
+    assert other_device_resp.json() == []
+
+    own_device_resp = client.get("/cards")
+    assert len(own_device_resp.json()) == 1
+    assert own_device_resp.json()[0]["matched_name"] == "Own Card"
+
+
+def test_cannot_get_or_delete_another_devices_card(client):
+    card_id = client.post(
+        "/cards", json={"status": "pending"}, headers={"X-Device-Id": "device-a"}
+    ).json()["id"]
+
+    get_resp = client.get(f"/cards/{card_id}", headers={"X-Device-Id": "device-b"})
+    assert get_resp.status_code == 404
+
+    delete_resp = client.delete(f"/cards/{card_id}", headers={"X-Device-Id": "device-b"})
+    assert delete_resp.status_code == 404
+
+    # the card must still exist for its actual owner
+    owner_get = client.get(f"/cards/{card_id}", headers={"X-Device-Id": "device-a"})
+    assert owner_get.status_code == 200
