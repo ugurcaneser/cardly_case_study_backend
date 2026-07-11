@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, CheckConstraint, ForeignKey, Integer, JSON
+from sqlalchemy import Column, CheckConstraint, ForeignKey, Integer, JSON, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -13,6 +13,9 @@ class Card(SQLModel, table=True):
     )
 
     id: int | None = Field(default=None, primary_key=True)
+    # Nullable so pre-multi-tenancy rows don't need a backfill — they simply
+    # stop matching any device's filtered queries instead of being deleted.
+    user_id: str | None = Field(default=None, index=True)
     status: str
     thumbnail_base64: str | None = None
     raw_ocr_text: str | None = None
@@ -31,8 +34,13 @@ class Card(SQLModel, table=True):
 
 
 class Collection(SQLModel, table=True):
+    # Name uniqueness is per-device, not global — two devices may each have
+    # their own "Vintage" collection.
+    __table_args__ = (UniqueConstraint("user_id", "name", name="uq_collection_user_id_name"),)
+
     id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(unique=True)
+    user_id: str | None = Field(default=None, index=True)
+    name: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
